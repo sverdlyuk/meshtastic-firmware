@@ -39,13 +39,19 @@ jobs:
       # Відкочуємо setuptools у середовищі PlatformIO. grpc_tools уже стоїть,
       # тож на наступному запуску nanopb його НЕ переставлятиме і не підніме
       # setuptools знову.
-      - name: Pin setuptools<72 in PlatformIO penv (fixes SCons)
+      # Відкочуємо setuptools<72 І ставимо стару grpcio-tools (1.62.3), яка
+      # нормально імпортується зі старим setuptools. Новий grpcio-tools 1.85
+      # сам вимагає setuptools>=77, тож просто відкотити setuptools мало —
+      # тоді grpc_tools не імпортується і nanopb ставить усе наново.
+      - name: Pin compatible setuptools/grpcio in PlatformIO penv (fixes SCons)
         run: |
           PENV_PY="$HOME/.platformio/penv/bin/python"
           if [ ! -x "$PENV_PY" ]; then
             echo "penv python not found at $PENV_PY"; ls -la "$HOME/.platformio" || true; exit 1
           fi
-          "$PENV_PY" -m pip install "setuptools<72"
+          "$PENV_PY" -m pip install "setuptools<72" "grpcio-tools==1.62.3" "protobuf>=4.21.6,<5"
+          echo "=== check grpc_tools imports with pinned setuptools ==="
+          "$PENV_PY" -c "import grpc_tools.protoc, google.protobuf, setuptools; print('grpc_tools OK, setuptools', setuptools.__version__)"
 
       # Другий запуск: grpc_tools імпортується -> nanopb пропускає встановлення,
       # setuptools лишається <72 -> SCons працює -> збірка доходить до кінця.
