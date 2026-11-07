@@ -18,29 +18,19 @@ jobs:
           submodules: recursive
           fetch-depth: 1
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
-      - name: Install PlatformIO
-        run: |
-          python -m pip install --upgrade pip
-          # setuptools>=72 ламає SCons у PlatformIO
-          # (No module named 'SCons.Tool.FortranCommon'), тому пінимо <72 —
-          # так само, як робить офіційна збірка Meshtastic.
-          pip install -U --no-build-isolation "setuptools<72"
-          pip install -U platformio
-
+      # Офіційна дія збірки Meshtastic. Вона сама ставить PlatformIO з
+      # правильними версіями (у т.ч. лагодить SCons/setuptools) і збирає env.
       - name: Build firmware (env:lilka)
-        run: pio run -e lilka
+        uses: meshtastic/gh-action-firmware@main
+        with:
+          pio_platform: esp32s3
+          pio_env: lilka
+          pio_target: build
 
+      # Готові прошивки дія складає в теку release/.
       - name: Upload firmware artifacts
         uses: actions/upload-artifact@v4
         with:
           name: meshtastic-lilka
           if-no-files-found: warn
-          path: |
-            .pio/build/lilka/*.bin
-            .pio/build/lilka/*.uf2
-            .pio/build/lilka/*.elf
+          path: release/
