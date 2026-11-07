@@ -1,0 +1,42 @@
+name: Build Meshtastic (Lilka)
+
+# Запуск вручну з вкладки Actions (кнопка "Run workflow").
+on:
+  workflow_dispatch:
+
+jobs:
+  build-lilka:
+    runs-on: ubuntu-latest
+    steps:
+      # Беремо код Meshtastic разом із таргетом Лілки з PR #9131.
+      # (У форку sverdlyuk/meshtastic-firmware цих файлів ще немає.)
+      - name: Checkout Meshtastic + Lilka target (PR #9131)
+        uses: actions/checkout@v4
+        with:
+          repository: meshtastic/firmware
+          ref: refs/pull/9131/head
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install PlatformIO
+        run: |
+          python -m pip install --upgrade pip
+          pip install --upgrade platformio
+
+      - name: Build firmware (env:lilka)
+        run: pio run -e lilka
+
+      - name: Upload firmware artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: meshtastic-lilka
+          if-no-files-found: warn
+          path: |
+            .pio/build/lilka/*.bin
+            .pio/build/lilka/*.uf2
+            .pio/build/lilka/*.elf
