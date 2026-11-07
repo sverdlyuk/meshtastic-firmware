@@ -26,7 +26,11 @@ jobs:
       - name: Install PlatformIO
         run: |
           python -m pip install --upgrade pip
-          pip install --upgrade platformio
+          # setuptools>=72 ламає SCons у PlatformIO
+          # (No module named 'SCons.Tool.FortranCommon'), тому пінимо <72 —
+          # так само, як робить офіційна збірка Meshtastic.
+          pip install -U --no-build-isolation "setuptools<72"
+          pip install -U platformio
 
       - name: Build firmware (env:lilka)
         run: pio run -e lilka
