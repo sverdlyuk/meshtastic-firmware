@@ -20,22 +20,23 @@ jobs:
         with:
           python-version: '3.11'
 
-      # Саме 6.2.0 (НЕ latest): остання версія підтягує 6.2.0.post1, чия
-      # перевірка версій хибно вважає "6.2.0-post.1" несумісною з ">=6.2.0"
-      # і ВИДАЛЯЄ платформу посеред збірки (-> .sconsign311.tmp not found).
-      # Чистий 6.2.0 задовольняє вимогу платформи, тож самооновлення не буде.
-      - name: Install PlatformIO (pinned 6.2.0)
+      # Перевірена мейнтейнером pioarduino пара: платформа 55.03.311 + ядро
+      # 6.1.19. Новіші платформи вимагають core>=6.2.0, через що PlatformIO
+      # самооновлюється до зламаного 6.2.0.post1 і видаляє платформу
+      # посеред збірки. 55.03.311 сумісна саме з 6.1.19 і не змушує оновлення.
+      - name: Install PlatformIO (pinned 6.1.19)
         run: |
           python -m pip install --upgrade pip
-          pip install "platformio==6.2.0"
+          pip install "platformio==6.1.19"
 
       # Платформа 55.03.39 змушує PlatformIO оновитись до core 6.2.0, а та
       # версія платформи дає розбіжність tool-scons і ламає SCons
       # ("No module named 'SCons.Tool.FortranCommon'"). Новіша платформа
       # 55.03.312-1 узгоджена з core 6.2.0 і цей баг не має.
-      - name: Bump pioarduino platform to a 6.2.0-compatible release
+      # Платформа 55.03.311 — та, що мейнтейнер підтверджує робочою з core 6.1.19.
+      - name: Pin pioarduino platform to 55.03.311
         run: |
-          sed -i 's#download/55\.03\.39/#download/55.03.312-1/#' variants/esp32/esp32-common.ini
+          sed -i 's#download/55\.03\.39/#download/55.03.311/#' variants/esp32/esp32-common.ini
           echo "=== platform line now ==="
           grep -n "pioarduino/platform-espressif32/releases/download" variants/esp32/esp32-common.ini
 
