@@ -20,18 +20,26 @@ jobs:
         with:
           python-version: '3.11'
 
-      # PlatformIO Core 6.2.0 має баг з tool-scons на framework=espidf
-      # (стирає SCons посеред збірки -> "No module named
-      # 'SCons.Tool.FortranCommon'"). Тому пінимо останню робочу версію 6.1.19.
-      - name: Install PlatformIO (pinned 6.1.19)
+      - name: Install PlatformIO
         run: |
           python -m pip install --upgrade pip
-          pip install "platformio==6.1.19"
+          pip install platformio
+
+      # Платформа 55.03.39 змушує PlatformIO оновитись до core 6.2.0, а та
+      # версія платформи дає розбіжність tool-scons і ламає SCons
+      # ("No module named 'SCons.Tool.FortranCommon'"). Новіша платформа
+      # 55.03.312-1 узгоджена з core 6.2.0 і цей баг не має.
+      - name: Bump pioarduino platform to a 6.2.0-compatible release
+        run: |
+          sed -i 's#download/55\.03\.39/#download/55.03.312-1/#' variants/esp32/esp32-common.ini
+          echo "=== platform line now ==="
+          grep -n "pioarduino/platform-espressif32/releases/download" variants/esp32/esp32-common.ini
 
       - name: Build firmware (env:lilka)
         run: pio run -e lilka
 
       - name: Upload firmware artifacts
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: meshtastic-lilka
