@@ -7,9 +7,13 @@ on:
 jobs:
   build-lilka:
     runs-on: ubuntu-latest
+    env:
+      # Тримаємо setuptools<72 для БУДЬ-ЯКОГО pip у цьому job, включно з тим,
+      # що PlatformIO/nanopb запускає у власному середовищі під час збірки.
+      # Новий setuptools (grpcio-tools тягне 84) ламає SCons усередині
+      # PlatformIO -> "No module named 'SCons.Tool.FortranCommon'".
+      PIP_CONSTRAINT: ${{ github.workspace }}/pip-constraints.txt
     steps:
-      # Беремо код Meshtastic разом із таргетом Лілки з PR #9131.
-      # (У форку sverdlyuk/meshtastic-firmware цих файлів ще немає.)
       - name: Checkout Meshtastic + Lilka target (PR #9131)
         uses: actions/checkout@v4
         with:
@@ -18,19 +22,29 @@ jobs:
           submodules: recursive
           fetch-depth: 1
 
-      # Офіційна дія збірки Meshtastic. Вона сама ставить PlatformIO з
-      # правильними версіями (у т.ч. лагодить SCons/setuptools) і збирає env.
-      - name: Build firmware (env:lilka)
-        uses: meshtastic/gh-action-firmware@main
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          pio_platform: esp32s3
-          pio_env: lilka
-          pio_target: build
+          python-version: '3.11'
 
-      # Готові прошивки дія складає в теку release/.
+      - name: Create pip constraints
+        run: echo "setuptools<72" > "${{ github.workspace }}/pip-constraints.txt"
+
+      - name: Install PlatformIO
+        run: |
+          python -m pip install --upgrade pip
+          pip install "setuptools<72"
+          pip install platformio
+
+      - name: Build firmware (env:lilka)
+        run: pio run -e lilka
+
       - name: Upload firmware artifacts
         uses: actions/upload-artifact@v4
         with:
           name: meshtastic-lilka
           if-no-files-found: warn
-          path: release/
+          path: |
+            .pio/build/lilka/*.bin
+            .pio/build/lilka/*.uf2
+            .pio/build/lilka/*.elf
