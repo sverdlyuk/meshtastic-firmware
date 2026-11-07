@@ -1,6 +1,5 @@
-name: Build Meshtastic (Lilka)
+name: Build Meshtastic Lilka
 
-# Запуск вручну з вкладки Actions (кнопка "Run workflow").
 on:
   workflow_dispatch:
 
@@ -8,8 +7,6 @@ jobs:
   build-lilka:
     runs-on: ubuntu-latest
     steps:
-      # Код Meshtastic разом із таргетом Лілки з PR #9131
-      # (у форку sverdlyuk/meshtastic-firmware цих файлів ще немає).
       - name: Checkout Meshtastic + Lilka target (PR #9131)
         uses: actions/checkout@v4
         with:
@@ -28,35 +25,23 @@ jobs:
           python -m pip install --upgrade pip
           pip install platformio
 
-      # Перший запуск: створює середовище PlatformIO (~/.platformio/penv) і
-      # дає nanopb поставити grpc_tools. Він підтягує setuptools>=77, через що
-      # SCons падає ("No module named 'SCons.Tool.FortranCommon'") — тому
-      # цей запуск може завершитися помилкою, і це очікувано (|| true).
-      # Але тулчейн, бібліотеки та об'єктні файли вже завантажені/скомпільовані.
-      - name: Seed build env (first pass, expected to fail at link)
-        run: pio run -e lilka || true
-
-      # Відкочуємо setuptools у середовищі PlatformIO. grpc_tools уже стоїть,
-      # тож на наступному запуску nanopb його НЕ переставлятиме і не підніме
-      # setuptools знову.
-      # Відкочуємо setuptools<72 І ставимо стару grpcio-tools (1.62.3), яка
-      # нормально імпортується зі старим setuptools. Новий grpcio-tools 1.85
-      # сам вимагає setuptools>=77, тож просто відкотити setuptools мало —
-      # тоді grpc_tools не імпортується і nanopb ставить усе наново.
-      - name: Pin compatible setuptools/grpcio in PlatformIO penv (fixes SCons)
+      - name: Build firmware (env:lilka)
         run: |
+          set -e
+          echo "::group::First pass (expected to fail at link)"
+          pio run -e lilka || echo "first pass failed as expected, fixing env..."
+          echo "::endgroup::"
+
           PENV_PY="$HOME/.platformio/penv/bin/python"
           if [ ! -x "$PENV_PY" ]; then
-            echo "penv python not found at $PENV_PY"; ls -la "$HOME/.platformio" || true; exit 1
+            echo "penv python not found; listing ~/.platformio"; ls -la "$HOME/.platformio" || true; exit 1
           fi
           "$PENV_PY" -m pip install "setuptools<72" "grpcio-tools==1.62.3" "protobuf>=4.21.6,<5"
-          echo "=== check grpc_tools imports with pinned setuptools ==="
-          "$PENV_PY" -c "import grpc_tools.protoc, google.protobuf, setuptools; print('grpc_tools OK, setuptools', setuptools.__version__)"
+          "$PENV_PY" -c "import grpc_tools.protoc, google.protobuf, setuptools; print('OK grpc_tools, setuptools', setuptools.__version__)"
 
-      # Другий запуск: grpc_tools імпортується -> nanopb пропускає встановлення,
-      # setuptools лишається <72 -> SCons працює -> збірка доходить до кінця.
-      - name: Build firmware (env:lilka)
-        run: pio run -e lilka
+          echo "::group::Second pass (real build)"
+          pio run -e lilka
+          echo "::endgroup::"
 
       - name: Upload firmware artifacts
         uses: actions/upload-artifact@v4
