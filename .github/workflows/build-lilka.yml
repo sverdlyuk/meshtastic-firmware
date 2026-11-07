@@ -7,13 +7,9 @@ on:
 jobs:
   build-lilka:
     runs-on: ubuntu-latest
-    env:
-      # Тримаємо setuptools<72 для БУДЬ-ЯКОГО pip у цьому job, включно з тим,
-      # що PlatformIO/nanopb запускає у власному середовищі під час збірки.
-      # Новий setuptools (grpcio-tools тягне 84) ламає SCons усередині
-      # PlatformIO -> "No module named 'SCons.Tool.FortranCommon'".
-      PIP_CONSTRAINT: ${{ github.workspace }}/pip-constraints.txt
     steps:
+      # Код Meshtastic разом із таргетом Лілки з PR #9131
+      # (у форку sverdlyuk/meshtastic-firmware цих файлів ще немає).
       - name: Checkout Meshtastic + Lilka target (PR #9131)
         uses: actions/checkout@v4
         with:
@@ -27,15 +23,32 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Create pip constraints
-        run: echo "setuptools<72" > "${{ github.workspace }}/pip-constraints.txt"
-
       - name: Install PlatformIO
         run: |
           python -m pip install --upgrade pip
-          pip install "setuptools<72"
           pip install platformio
 
+      # Перший запуск: створює середовище PlatformIO (~/.platformio/penv) і
+      # дає nanopb поставити grpc_tools. Він підтягує setuptools>=77, через що
+      # SCons падає ("No module named 'SCons.Tool.FortranCommon'") — тому
+      # цей запуск може завершитися помилкою, і це очікувано (|| true).
+      # Але тулчейн, бібліотеки та об'єктні файли вже завантажені/скомпільовані.
+      - name: Seed build env (first pass, expected to fail at link)
+        run: pio run -e lilka || true
+
+      # Відкочуємо setuptools у середовищі PlatformIO. grpc_tools уже стоїть,
+      # тож на наступному запуску nanopb його НЕ переставлятиме і не підніме
+      # setuptools знову.
+      - name: Pin setuptools<72 in PlatformIO penv (fixes SCons)
+        run: |
+          PENV_PY="$HOME/.platformio/penv/bin/python"
+          if [ ! -x "$PENV_PY" ]; then
+            echo "penv python not found at $PENV_PY"; ls -la "$HOME/.platformio" || true; exit 1
+          fi
+          "$PENV_PY" -m pip install "setuptools<72"
+
+      # Другий запуск: grpc_tools імпортується -> nanopb пропускає встановлення,
+      # setuptools лишається <72 -> SCons працює -> збірка доходить до кінця.
       - name: Build firmware (env:lilka)
         run: pio run -e lilka
 
